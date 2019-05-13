@@ -5,6 +5,8 @@ import static java.nio.file.FileVisitResult.*;
 
 import java.io.*;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.text.DateFormat;
@@ -15,6 +17,7 @@ import java.time.format.*;
 import java.util.*;
 import java.util.ArrayDeque;
 import java.util.concurrent.*;
+import java.util.StringTokenizer;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.commons.math3.util.Precision;
@@ -47,40 +50,41 @@ public final class TikaLuceneWarc {
   public static final String FIELD_DATE = "date";
   public static final String FIELD_ID = "id";
 
-  public static class Posting implements Comparable<Posting> {
-    public int id;
-    public int freq;
-    public ArrayList<Integer> pos;
+  //public static class Posting implements Comparable<Posting> {
+  //  public int id;
+  //  public int freq;
+  //  public ArrayList<Integer> pos;
 
-    public Posting(int i, int s, ArrayList<Integer> p) {
-      this.id = i;
-      this.freq = s;
-      this.pos = new ArrayList(p);
-    }
+  //  //public Posting(int i, int s, ArrayList<Integer> p) {
+  //  //  this.id = i;
+  //  //  this.freq = s;
+  //  //  this.pos = new ArrayList(p);
+  //  //}
 
-    public Posting(int i, int s) {
-      this.id = i;
-      this.freq = s;
-    }
+  //  //public Posting(int i, int s) {
+  //  //  this.id = i;
+  //  //  this.freq = s;
+  //  //}
 
-    @Override
-    public int compareTo(Posting anotherInstance) {
-      return this.id - anotherInstance.id;
-    }
-  }
+  //  //@Override
+  //  //public int compareTo(Posting anotherInstance) {
+  //  //  return this.id - anotherInstance.id;
+  //  //}
+  //}
 
   public static class indexFile implements Callable {
     private Path warcFile;
-    private IndexWriter writer;
+    //private IndexWriter writer;
     private HtmlParser parser;
-    private boolean positions;
+    //private boolean positions;
     private String languageFilter;
 
-    public indexFile(Path warcFile, IndexWriter writer, boolean storePos, String languageF) {
+    //public indexFile(Path warcFile, IndexWriter writer, boolean storePos, String languageF) {
+    public indexFile(Path warcFile, String languageF) {
       this.warcFile = warcFile;
-      this.writer = writer;
+      //this.writer = writer;
       this.parser = new HtmlParser();
-      this.positions = storePos;
+      //this.positions = storePos;
       languageFilter = languageF;
     }
 
@@ -98,6 +102,8 @@ public final class TikaLuceneWarc {
         // Once we have an ArchiveReader, we can work through each of the records it contains
         int rec = 0;
         for (ArchiveRecord r : ar) {
+					LOG.info("[arcj-" + Thread.currentThread().getId() + "] ArchiveRecord = " + warcFile);
+					//LOG.info("[arcj-" + Thread.currentThread().getId() + "] ");
           rec++;
           // The header file contains information such as the type of record, size, creation time, and URL
           ArchiveRecordHeader header = r.getHeader();
@@ -110,6 +116,42 @@ public final class TikaLuceneWarc {
             LOG.error(rec + " SKIP url = " + url + " date = " + date + " mime = " + mimetype);
             continue;
           }
+					// arcj
+					ArrayList<String> tfMeta = new ArrayList<String>();
+					ArrayList<String> tfBody = new ArrayList<String>();
+					ArrayList<String> tfResult = new ArrayList<String>();
+					ArrayList<String> tmpStrArr2 = new ArrayList<String>(); //  newDate
+					String fResult, fMeta, fBody;
+					String tmpStr1, tmpStr2;
+
+					StringTokenizer tDateToken = new StringTokenizer(date, "TZ");
+					String tDate1 = tDateToken.nextToken(); // 2017-01-01
+					String tDate2 = tDateToken.nextToken(); // 11:26:44
+
+					tDateToken = new StringTokenizer(tDate1, "-"); // 2017 01 01
+					String tyear = tDateToken.nextToken();
+					String tmonth = tDateToken.nextToken();
+					String tday = tDateToken.nextToken();
+					String month = "JAN";
+					switch (Integer.parseInt(tmonth)) {
+						case 1: month = "JAN"; break; case 2: month = "FEB"; break; case 3: month = "MAR"; break;
+						case 4: month = "APR"; break; case 5: month = "MAY"; break; case 6: month = "JUN"; break;
+						case 7: month = "JUL"; break; case 8: month = "AUG"; break; case 9: month = "SEP"; break;
+						case 10: month = "OCT"; break; case 11: month = "NOV"; break; case 12: month = "DEC"; break;
+						default: month = "INV"; break;
+					}
+					ArrayList<String> tmpStrArr = new ArrayList<String>(); //  newDate
+					tmpStrArr.add(tday); tmpStrArr.add(month); tmpStrArr.add(tyear); 
+					tDate1 = String.join("-", tmpStrArr); // 01-JAN-2017
+
+					String fTitle = "tmp";
+					tfMeta.add(tDate1);
+					tfMeta.add(tDate2);
+					fMeta = String.join(" ", tfMeta);
+					
+					//tfResult.add(fTitle);
+					tfResult.add(url);
+					tfResult.add(fMeta);
 
           // (1) tika parse content
           try {
@@ -126,10 +168,54 @@ public final class TikaLuceneWarc {
               LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
               lang = identifier.getLanguage();
               if (lang.equals(languageFilter)) {
+								int z = 0;
+								String tmpId = header.getReaderIdentifier();
+								StringTokenizer tmpIdToken = new StringTokenizer(tmpId,"/");
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] identifier = " + tmpId);
+								while (tmpIdToken.hasMoreTokens()) {
+									tmpId = tmpIdToken.nextToken();
+								}
+								tmpIdToken = new StringTokenizer(tmpId,"-.");
+								while (tmpIdToken.hasMoreTokens()) {
+									tmpId = tmpIdToken.nextToken();
+									if (z == 3) {
+										break;
+										//LOG.info("[arcj-" + Thread.currentThread().getId() + "] tmpIdToken = " + tmpIdToken.nextToken());
+									}
+									z++;
+								}
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] tmpId = " + tmpId);
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] metadata = " + metadata);
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] parsedContent = " + parsedContent);
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] identifier = " + identifier + " / " + lang);
                 skipDocument = false;
+
+                // arcj: extract only meaningful data from parsedContent and create 1 line
+                StringTokenizer splitted = new StringTokenizer(parsedContent," \t\n:");
+                //LOG.info("[arcj-" + Thread.currentThread().getId() + "] splitted1 = " + Arrays.                  toString(splitted));
+                while (splitted.hasMoreTokens()) {
+                  tfBody.add(splitted.nextToken());
+                }
+                tfBody.add("\n");
+                fBody = String.join(" ", tfBody);
+                tfResult.add(fBody);
+
+                //transformedMeta.add(transformed2);
+                fResult = String.join("\t", tfResult);
+                //LOG.info("[arcj-" + Thread.currentThread().getId() + "] splitted1 = " + splitted.nextToken());
+                //LOG.info("[arcj-" + Thread.currentThread().getId() + "] splitted1 = " + String.join(" ",         transformed));
+                //LOG.info("[arcj-" + Thread.currentThread().getId() + "] splitted2 = " + splitted[0] + " / " +    splitted[1] + " / " + splitted[2]);
+                // arcj
+                String path = "./tf-cc-news/" + tmpId + ".txt";
+                File afile = new File(path);
+                FileWriter fw = new FileWriter(afile, true);
+                fw.write(fResult);
+                fw.close();
               }
             }
 
+						// need to discard
+						/*
             if (skipDocument) {
               LOG.info(rec + " SKIP url = " + url + " date = " + date + " lang = '" + lang + "'");
             } else {
@@ -200,6 +286,8 @@ public final class TikaLuceneWarc {
               writer.addDocument(document);
               docCount++;
             }
+						*/
+
           } catch (TikaException e) {
             System.err.println("[FATAL] TIKA " + url + ":" + e.getMessage());
           } catch (IOException e) {
@@ -219,18 +307,18 @@ public final class TikaLuceneWarc {
     }
   }
 
-  public static void writeInt(DataOutputStream out, int value, boolean plain) throws IOException {
-    if (plain) {
-      String str = Integer.toString(value) + "\n";
-      byte[] data = str.getBytes("UTF-8");
-      out.write(data);
-    } else {
-      out.writeByte(value & 0xFF);
-      out.writeByte((value >> 8) & 0xFF);
-      out.writeByte((value >> 16) & 0xFF);
-      out.writeByte((value >> 24) & 0xFF);
-    }
-  }
+  //public static void writeInt(DataOutputStream out, int value, boolean plain) throws IOException {
+  //  if (plain) {
+  //    String str = Integer.toString(value) + "\n";
+  //    byte[] data = str.getBytes("UTF-8");
+  //    out.write(data);
+  //  } else {
+  //    out.writeByte(value & 0xFF);
+  //    out.writeByte((value >> 8) & 0xFF);
+  //    out.writeByte((value >> 16) & 0xFF);
+  //    out.writeByte((value >> 24) & 0xFF);
+  //  }
+  //}
 
   public static void main(String[] args) throws Exception {
     final Logger LOG = LogManager.getLogger(TikaLuceneWarc.class);
@@ -238,13 +326,13 @@ public final class TikaLuceneWarc {
     // (1) parse command line options
     Options options = new Options();
     options.addOption("help", false, "print this help output");
-    options.addOption("plain", false, "write plaintext instead of 32-bit little endian");
-    options.addOption("pos", false, "write positional information in .pos file");
-    options.addOption("url", false, "perform url reordering");
+    //options.addOption("plain", false, "write plaintext instead of 32-bit little endian");
+    //options.addOption("pos", false, "write positional information in .pos file");
+    //options.addOption("url", false, "perform url reordering");
     options.addOption("input", true, "input directory with warc files");
     options.addOption("startDate", true, "start date of the collection. format: 'YYYYMMDD'");
     options.addOption("stopDate", true, "stop date of the collection. format: 'YYYYMMDD'");
-    options.addOption("lang", true, "language filter. default = 'en'. use 'all' for all languages");
+    //options.addOption("lang", true, "language filter. default = 'en'. use 'all' for all languages");
     options.addOption("tmp", true, "temporary directory to store lucene index");
     options.addOption("output", true, "output directory to store d2si filse");
     CommandLineParser parser = new DefaultParser();
@@ -263,9 +351,9 @@ public final class TikaLuceneWarc {
     String outputDir = "";
     String tmpDir = "./";
     String languageFilter = "en";
-    boolean urlSorting = false;
-    boolean storePositions = false;
-    boolean writePlain = false;
+    //boolean urlSorting = false;
+    //boolean storePositions = false;
+    //boolean writePlain = false;
 
     // define start and stop date
     Calendar cal = GregorianCalendar.getInstance();
@@ -286,9 +374,9 @@ public final class TikaLuceneWarc {
     if (cmd.hasOption("tmp")) {
       tmpDir = cmd.getOptionValue("tmp");
     }
-    if (cmd.hasOption("lang")) {
-      languageFilter = cmd.getOptionValue("lang");
-    }
+    //if (cmd.hasOption("lang")) {
+    //  languageFilter = cmd.getOptionValue("lang");
+    //}
     if (cmd.hasOption("startDate")) {
       String sDateStr = cmd.getOptionValue("startDate");
 
@@ -328,15 +416,15 @@ public final class TikaLuceneWarc {
     if (cmd.hasOption("output")) {
       outputDir = cmd.getOptionValue("output");
     }
-    if (cmd.hasOption("pos")) {
-      storePositions = true;
-    }
-    if (cmd.hasOption("plain")) {
-      writePlain = true;
-    }
-    if (cmd.hasOption("url")) {
-      urlSorting = true;
-    }
+    //if (cmd.hasOption("pos")) {
+    //  storePositions = true;
+    //}
+    //if (cmd.hasOption("plain")) {
+    //  writePlain = true;
+    //}
+    //if (cmd.hasOption("url")) {
+    //  urlSorting = true;
+    //}
     if (inputDir == "" || outputDir == "") {
       HelpFormatter formatter = new HelpFormatter();
       formatter.printHelp("TikaLuceneWarc", options);
@@ -351,7 +439,7 @@ public final class TikaLuceneWarc {
     LOG.info("output dir = " + outputDir);
     LOG.info("input dir = " + inputDir);
     LOG.info("base name = " + baseName);
-    LOG.info("url sorted docids = " + urlSorting);
+    //LOG.info("url sorted docids = " + urlSorting);
     LOG.info("start date = " + sdf.format(startDate));
     LOG.info("stop date = " + sdf.format(stopDate));
 
@@ -396,16 +484,16 @@ public final class TikaLuceneWarc {
 
     // (2) configure lucene index writer
     {
-      final StandardAnalyzer sa = new StandardAnalyzer(CharArraySet.EMPTY_SET);
-      final IndexWriterConfig iwc = new IndexWriterConfig(sa);
-      iwc.setSimilarity(new BM25Similarity());
-      iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-      iwc.setRAMBufferSizeMB(4 * 1024);
-      iwc.setUseCompoundFile(false);
-      iwc.setMergeScheduler(new ConcurrentMergeScheduler());
-      final Path indexPath = Paths.get(tmpDir);
-      final Directory indexDir = FSDirectory.open(indexPath);
-      final IndexWriter writer = new IndexWriter(indexDir, iwc);
+      //final StandardAnalyzer sa = new StandardAnalyzer(CharArraySet.EMPTY_SET);
+      //final IndexWriterConfig iwc = new IndexWriterConfig(sa);
+      //iwc.setSimilarity(new BM25Similarity());
+      //iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+      //iwc.setRAMBufferSizeMB(4 * 1024);
+      //iwc.setUseCompoundFile(false);
+      //iwc.setMergeScheduler(new ConcurrentMergeScheduler());
+      //final Path indexPath = Paths.get(tmpDir);
+      //final Directory indexDir = FSDirectory.open(indexPath);
+      //final IndexWriter writer = new IndexWriter(indexDir, iwc);
 
       // (3) iterate over all files and index
       final long start = System.nanoTime();
@@ -417,7 +505,8 @@ public final class TikaLuceneWarc {
       final ArrayDeque<Future> outputFutureStack = new ArrayDeque<>();
       for (Path warcFile : inputFileStack) {
         Future<Integer> future =
-            es.submit(new indexFile(warcFile, writer, storePositions, languageFilter));
+            //es.submit(new indexFile(warcFile, writer, storePositions, languageFilter));
+            es.submit(new indexFile(warcFile, languageFilter));
         outputFutureStack.add(future);
       }
 
@@ -449,24 +538,27 @@ public final class TikaLuceneWarc {
         return;
       }
 
+      LOG.info("End parsing process!");
+
       // (4) merge into one index
-      int numIndexed = writer.maxDoc();
-      LOG.info("writing and merging indexes!");
-      try {
-        writer.commit();
-        writer.forceMerge(1);
-      } finally {
-        writer.close();
-      }
-      final long durationMillis =
-          TimeUnit.MILLISECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS);
-      LOG.info(
-          "Total "
-              + numIndexed
-              + " documents indexed in "
-              + DurationFormatUtils.formatDuration(durationMillis, "HH:mm:ss"));
+      //int numIndexed = writer.maxDoc();
+      //LOG.info("writing and merging indexes!");
+      //try {
+      //  writer.commit();
+      //  writer.forceMerge(1);
+      //} finally {
+      //  writer.close();
+      //}
+      //final long durationMillis =
+      //    TimeUnit.MILLISECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+      //LOG.info(
+      //    "Total "
+      //        + numIndexed
+      //        + " documents indexed in "
+      //        + DurationFormatUtils.formatDuration(durationMillis, "HH:mm:ss"));
     }
 
+		/*
     {
       LOG.info("Parsing Lucene index from disk.");
       Path indexPath = Paths.get(tmpDir);
@@ -732,5 +824,6 @@ public final class TikaLuceneWarc {
         urlps.close();
       }
     }
+	*/
   }
 }
