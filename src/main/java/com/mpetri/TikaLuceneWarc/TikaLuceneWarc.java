@@ -102,7 +102,7 @@ public final class TikaLuceneWarc {
         // Once we have an ArchiveReader, we can work through each of the records it contains
         int rec = 0;
         for (ArchiveRecord r : ar) {
-					LOG.info("[arcj-" + Thread.currentThread().getId() + "] ArchiveRecord = " + warcFile);
+					//LOG.info("[arcj-" + Thread.currentThread().getId() + "] ArchiveRecord = " + warcFile);
 					//LOG.info("[arcj-" + Thread.currentThread().getId() + "] ");
           rec++;
           // The header file contains information such as the type of record, size, creation time, and URL
@@ -113,7 +113,7 @@ public final class TikaLuceneWarc {
           String mimetype = header.getMimetype();
           String date = header.getDate();
           if (!mimetype.contains("application/http")) {
-            LOG.error(rec + " SKIP url = " + url + " date = " + date + " mime = " + mimetype);
+            //LOG.error(rec + " SKIP url = " + url + " date = " + date + " mime = " + mimetype);
             continue;
           }
 					// arcj
@@ -175,10 +175,11 @@ public final class TikaLuceneWarc {
 								while (tmpIdToken.hasMoreTokens()) {
 									tmpId = tmpIdToken.nextToken();
 								}
-								tmpIdToken = new StringTokenizer(tmpId,"-.");
+								//LOG.info("[arcj-" + Thread.currentThread().getId() + "] identifier = " + tmpId);
+								tmpIdToken = new StringTokenizer(tmpId,".");
 								while (tmpIdToken.hasMoreTokens()) {
 									tmpId = tmpIdToken.nextToken();
-									if (z == 3) {
+									if (z == 0) {
 										break;
 										//LOG.info("[arcj-" + Thread.currentThread().getId() + "] tmpIdToken = " + tmpIdToken.nextToken());
 									}
@@ -504,6 +505,7 @@ public final class TikaLuceneWarc {
       LOG.info("files = " + numFiles);
       final ArrayDeque<Future> outputFutureStack = new ArrayDeque<>();
       for (Path warcFile : inputFileStack) {
+				LOG.info("warcFile = " + warcFile);
         Future<Integer> future =
             //es.submit(new indexFile(warcFile, writer, storePositions, languageFilter));
             es.submit(new indexFile(warcFile, languageFilter));
